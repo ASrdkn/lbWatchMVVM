@@ -9,16 +9,23 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.example.lbwatch.R
 import com.example.lbwatch.model.Item
-import com.example.lbwatch.ui.SearchActivity
 import com.squareup.picasso.Picasso
 
-class SearchAdapter(var list: List<Item>, var listener: SearchActivity.RecyclerItemListener, var context: Context): RecyclerView.Adapter<SearchAdapter.SearchHolder>() {
+class SearchAdapter(
+    private val context: Context,
+    private val listener: RecyclerItemListener
+) : RecyclerView.Adapter<SearchAdapter.SearchHolder>() {
+
+    private var list: List<Item> = emptyList()
+
+    // Обновление данных в адаптере
+    fun updateData(newList: List<Item>) {
+        list = newList
+        notifyDataSetChanged() // Обновляем адаптер с новыми данными
+    }
 
     // Создание нового ViewHolder для каждого элемента
-    override fun onCreateViewHolder(
-        parent: ViewGroup,
-        viewType: Int
-    ): SearchHolder {
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): SearchHolder {
         val view = LayoutInflater.from(context).inflate(R.layout.item_movie_detal, parent, false)
         val viewHolder = SearchHolder(view)
 
@@ -28,13 +35,14 @@ class SearchAdapter(var list: List<Item>, var listener: SearchActivity.RecyclerI
     }
 
     override fun onBindViewHolder(holder: SearchHolder, position: Int) {
-        holder.titleTextView.text = list[position].title
-        holder.releaseDateTextView.text = list[position].releaseDate
-        holder.overviewTextView.text = list[position].overview
+        val item = list[position]
+        holder.titleTextView.text = item.title
+        holder.releaseDateTextView.text = item.releaseDate
+        holder.overviewTextView.text = item.overview
 
         // Если у элемента есть изображение, загружаем его с помощью Picasso
-        if (list[position].posterPath != "N/A") {
-            Picasso.get().load(list[position].posterPath).into(holder.imageView)
+        if (item.posterPath != "N/A") {
+            Picasso.get().load(item.posterPath).into(holder.imageView)
         }
     }
 
@@ -61,4 +69,7 @@ class SearchAdapter(var list: List<Item>, var listener: SearchActivity.RecyclerI
         }
     }
 
+    interface RecyclerItemListener {
+        fun onItemClick(v: View, position: Int)
+    }
 }
