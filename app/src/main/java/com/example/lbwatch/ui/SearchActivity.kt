@@ -68,7 +68,7 @@ class SearchActivity : AppCompatActivity() {
         searchViewModel.fetchMovies(query)
     }
 
-    internal var itemListener: SearchAdapter.RecyclerItemListener = object : SearchAdapter.RecyclerItemListener {
+    private var itemListener: SearchAdapter.RecyclerItemListener = object : SearchAdapter.RecyclerItemListener {
         override fun onItemClick(view: View, position: Int) {
             val movie = adapter.getItemAtPosition(position)
             val replyIntent = Intent()
