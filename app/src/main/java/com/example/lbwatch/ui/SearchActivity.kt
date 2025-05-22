@@ -5,26 +5,24 @@ import android.os.Bundle
 import android.view.View
 import android.widget.ProgressBar
 import android.widget.TextView
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.Observer
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.lbwatch.R
 import com.example.lbwatch.adapter.SearchAdapter
-import com.example.lbwatch.api.ClientAPI
-import com.example.lbwatch.model.Item
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import retrofit2.Retrofit
-import retrofit2.converter.moshi.MoshiConverterFactory
+import com.example.lbwatch.viewModel.SearchViewModel
 
 class SearchActivity : AppCompatActivity() {
-    private lateinit var list: List<Item>
+
     private lateinit var recyclerView: RecyclerView
     private lateinit var adapter: SearchAdapter
     private lateinit var noMoviesTextView: TextView
     private lateinit var progressBar: ProgressBar
     private var query = ""
+
+    private val searchViewModel: SearchViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -35,33 +33,42 @@ class SearchActivity : AppCompatActivity() {
         noMoviesTextView = findViewById(R.id.no_movies_textview)
         recyclerView.layoutManager = LinearLayoutManager(this)
 
+        // Получаем запрос для поиска
         val i = intent
         query = i.getStringExtra(SEARCH_QUERY) ?: ""
 
-        val retrofit: Retrofit = Retrofit.Builder()
-            .baseUrl("https://www.omdbapi.com/")
-            .addConverterFactory(MoshiConverterFactory.create())
-            .build()
+        // Инициализация адаптера
+        adapter = SearchAdapter(this, itemListener)
+        recyclerView.adapter = adapter
 
-        val clientApi: ClientAPI = retrofit.create(ClientAPI::class.java)
+        // Наблюдаем за состоянием загрузки, ошибками и результатами
+        searchViewModel.loading.observe(this, Observer { isLoading ->
+            progressBar.visibility = if (isLoading) View.VISIBLE else View.INVISIBLE
+        })
 
-        CoroutineScope(Dispatchers.IO).launch {
-            val response = clientApi.fetchResponse("c54d9bf7", query)
-            runOnUiThread {
-                list = response.items ?: emptyList()
-                if (list.isEmpty()) {
-                    noMoviesTextView.visibility = View.VISIBLE
-                } else {
-                    noMoviesTextView.visibility = View.INVISIBLE
-                }
-                adapter = SearchAdapter(list, itemListener, this@SearchActivity)
-                recyclerView.adapter = adapter
-                progressBar.visibility = View.INVISIBLE
+        searchViewModel.error.observe(this, Observer { errorMessage ->
+            if (errorMessage != null) {
+                noMoviesTextView.visibility = View.VISIBLE
+                noMoviesTextView.text = errorMessage
             }
-        }
+        })
+
+        searchViewModel.items.observe(this, Observer { items ->
+            if (items?.isNotEmpty() == true) { // Проверка на null и пустоту
+                noMoviesTextView.visibility = View.INVISIBLE
+                recyclerView.visibility = View.VISIBLE
+                adapter.updateData(items) // Обновляем данные в адаптере
+            } else {
+                recyclerView.visibility = View.INVISIBLE
+                noMoviesTextView.visibility = View.VISIBLE
+            }
+        })
+
+        // Выполняем запрос на получение фильмов
+        searchViewModel.fetchMovies(query)
     }
 
-    internal var itemListener: RecyclerItemListener = object : RecyclerItemListener {
+    internal var itemListener: SearchAdapter.RecyclerItemListener = object : SearchAdapter.RecyclerItemListener {
         override fun onItemClick(view: View, position: Int) {
             val movie = adapter.getItemAtPosition(position)
             val replyIntent = Intent()
@@ -78,9 +85,5 @@ class SearchActivity : AppCompatActivity() {
         const val EXTRA_TITLE = "SearchActivity.TITLE_REPLY"
         const val EXTRA_RELEASE_DATE = "SearchActivity.RELEASE_DATE_REPLY"
         const val EXTRA_POSTER_PATH = "SearchActivity.POSTER_PATH_REPLY"
-    }
-
-    interface RecyclerItemListener {
-        fun onItemClick(v: View, position: Int)
     }
 }
