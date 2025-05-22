@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">lbWatch</string>
+    <string name="add_movie">AddMovie</string>
+    <string name="delete">Delete</string>
+</resources>
