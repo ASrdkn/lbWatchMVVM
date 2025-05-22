@@ -2,43 +2,30 @@ package com.example.lbwatch.ui
 
 import android.app.Activity
 import android.content.Intent
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
-import android.util.Log
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.Toast
-import androidx.activity.enableEdgeToEdge
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
+import androidx.activity.viewModels
+import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.Observer
 import com.example.lbwatch.R
-import com.example.lbwatch.model.Movie
-import com.example.lbwatch.model.MovieDB
+import com.example.lbwatch.viewModel.AddViewModel
 import com.squareup.picasso.Picasso
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
 class AddActivity : AppCompatActivity() {
-    lateinit var titleEditText: EditText
-    lateinit var releaseDateEditText: EditText
-    lateinit var movieImageView: ImageView
+
+    private val addViewModel: AddViewModel by viewModels()
+
+    private lateinit var titleEditText: EditText
+    private lateinit var releaseDateEditText: EditText
+    private lateinit var movieImageView: ImageView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_add)
-
-        enableEdgeToEdge()
-
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
-            insets
-        }
-
-        val dataBase = MovieDB.getDb(this)
 
         titleEditText = findViewById(R.id.movie_title)
         val searchBtn = findViewById<ImageButton>(R.id.search_btn)
@@ -46,6 +33,28 @@ class AddActivity : AppCompatActivity() {
         releaseDateEditText = findViewById(R.id.movie_release_date)
         movieImageView = findViewById(R.id.movie_imageview)
 
+        // Наблюдение за LiveData из ViewModel
+        addViewModel.title.observe(this, Observer {
+            titleEditText.setText(it)
+        })
+
+        addViewModel.releaseDate.observe(this, Observer {
+            releaseDateEditText.setText(it)
+        })
+
+        addViewModel.moviePosterPath.observe(this, Observer {
+            movieImageView.tag = it
+            if (it.isNotEmpty()) {
+                Picasso.get().load(it).into(movieImageView)
+            }
+        })
+
+        // Наблюдение за изменениями в списке фильмов
+        addViewModel.allMovies.observe(this, Observer { movies ->
+            Toast.makeText(this, "Список фильмов обновлен", Toast.LENGTH_SHORT).show()
+        })
+
+        // Обработчик кнопки поиска
         searchBtn.setOnClickListener {
             if (titleEditText.text.isEmpty()) {
                 Toast.makeText(
@@ -61,25 +70,26 @@ class AddActivity : AppCompatActivity() {
             }
         }
 
+        // Обработчик кнопки добавления фильма
         addBtn.setOnClickListener {
-            if (titleEditText.text.isEmpty() || releaseDateEditText.text.isEmpty()) {
+            val title = titleEditText.text.toString().trim()
+            val releaseDate = releaseDateEditText.text.toString().trim()
+            val posterPath = movieImageView.tag?.toString().orEmpty()  // Используем безопасный вызов и .orEmpty()
+
+            if (title.isEmpty() || releaseDate.isEmpty()) {
                 Toast.makeText(
                     this,
                     "Поля не могут быть пустыми",
                     Toast.LENGTH_LONG
                 ).show()
             } else {
-                if (movieImageView.tag == null) movieImageView.tag = ""
+                // Обновляем данные в ViewModel
+                addViewModel.title.value = title
+                addViewModel.releaseDate.value = releaseDate
+                addViewModel.moviePosterPath.value = posterPath
 
-                CoroutineScope(Dispatchers.IO).launch {
-                    val movie = Movie(
-                        null,
-                        titleEditText.text.toString(),
-                        releaseDateEditText.text.toString(),
-                        movieImageView.tag.toString()
-                    )
-                    dataBase.getDao().insert(movie)
-                }
+                addViewModel.addMovie()
+                Toast.makeText(this, "Фильм успешно добавлен", Toast.LENGTH_SHORT).show()
                 setResult(Activity.RESULT_OK)
                 finish()
             }
@@ -90,13 +100,9 @@ class AddActivity : AppCompatActivity() {
         super.onActivityResult(requestCode, resultCode, data)
 
         this@AddActivity.runOnUiThread {
-            titleEditText.setText(data?.getStringExtra(SearchActivity.EXTRA_TITLE))
-            releaseDateEditText.setText(data?.getStringExtra(SearchActivity.EXTRA_RELEASE_DATE))
-            movieImageView.tag = data?.getStringExtra(SearchActivity.EXTRA_POSTER_PATH) ?: ""
-            if (movieImageView.tag !== "") {
-                Picasso.get().load(data?.getStringExtra(SearchActivity.EXTRA_POSTER_PATH)).into(movieImageView)
-            }
-            Log.d("AddActivity", movieImageView.tag.toString())
+            addViewModel.title.value = data?.getStringExtra(SearchActivity.EXTRA_TITLE)
+            addViewModel.releaseDate.value = data?.getStringExtra(SearchActivity.EXTRA_RELEASE_DATE)
+            addViewModel.moviePosterPath.value = data?.getStringExtra(SearchActivity.EXTRA_POSTER_PATH)
         }
     }
 
